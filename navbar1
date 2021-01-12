@@ -1,0 +1,364 @@
+{% comment %} 
+  BEGIN SETUP
+  We need to figure out how many menu roots there are: uniq(blocks.map.(b => b.settings.group_id))
+{% endcomment %}
+{% assign menu_roots = '' %}
+{% for block in section.blocks %}
+  {% unless block.settings.group_id == blank or block.settings.group_id == '' %}
+    {% assign menu_roots = menu_roots | append: block.settings.group_id %}
+    {% unless forloop.last %}
+      {% assign menu_roots = menu_roots | append: ',' %}
+    {% endunless %}
+  {% endunless %}
+{% endfor %}
+{% assign menu_roots = menu_roots | split: ',' | uniq %}
+
+{% comment %} END SETUP {% endcomment %}
+
+{% capture props %}
+{
+  "drawerCount": {{ menu_roots | size | json }}
+}
+{% endcapture %}
+
+<nav class="bg-black md:px-e16 md:py-0 relative"
+  v-scroll-lock="mobileMenuOpen"
+  id="navbar"
+  data-vue-component="NavBar"
+  data-props="{{ props | strip | escape }}"
+  :class="{'navbar-search--open': desktopSearchOpen}">
+  <div class="max-w-screen-lg flex justify-between items-center mx-auto">
+    <a itemscope itemtype="http://schema.org/Brand" class="navbar-flex-item-1 pl-e16 md:pl-0" href="/" aria-label="Go to homepage">
+      <h1>
+        <span class="hidden" itemprop="name">Juiced Bikes</span>
+        <img class="h-e36 md:h-e56" src="{{ section.settings.logo | img_url: '350x' }}" alt="Juiced Bikes Logo" itemprop="logo">
+      </h1>
+    </a>
+    <ul class="navbar-flex-item-2 hidden md:inline-block text-center">
+      {% for root in menu_roots %}
+        <li class="inline-block"
+          @mouseover="openDrawerAndShowContentByIndex({{ forloop.index0 }})" 
+          @mouseout="closeDrawerAndHideContentByIndex({{ forloop.index0 }})">
+          <button @click="toggleDrawerAndShowContentByIndex({{ forloop.index0 }})"
+            class="drawer-link p-e16 diag-line-effect uppercase font-bold futura-bold text-body-md text-white tracking-normal focus:shadow-outline focus:outline-none"
+            :class="{'active': drawerStates[{{ forloop.index0 }}]}">
+            <span class="diag-line-effect__target bg-black">{{ root }}</span>
+            <span class="diag-line-effect__line"></span>
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+    <ul class="navbar-flex-item-3 flex items-center text-0 justify-end">
+      <li class="navbar-search inline-flex items-center text-white px-e8 md:px-e12 py-e16 md:py-e28 space-x-e12 ">
+        <button class="md:hidden box-content hover:translate-up  btn--icon focus:text-red-500" 
+          @click="mobileSearchOpen ? closeMobileSearch() : openMobileSearch()" 
+          aria-label="search the website"
+          style="min-width: 31px; min-height: 31px;">
+          <svg v-if="mobileSearchOpen" style="width: 17px; height: 17px;" class="hidden-until-vue-loaded text-red-700 mx-auto">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#mobile-menu-close"></use>
+          </svg>
+          <svg v-else class="w-e22 h-e22 mx-auto" >
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use>
+          </svg>
+        </button>
+        <button class="hidden md:block hover:translate-up  btn--icon focus:text-red-500" @click="openDesktopSearch" aria-label="search the website">
+          <svg class="w-e22 h-e22">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use>
+          </svg>
+        </button>
+        <div class="navbar-search__form hidden-until-loaded items-center space-x-e8 bg-black hidden md:inline-flex">
+          <form class="inline-block bg-black" 
+            style="height: 40px;"
+            method="get"
+            action="/search">
+            <input type="search"
+              aria-label="search the site"
+              :tabindex="desktopSearchOpen ? '0' : '-1'"
+              class="pointer-events-none bg-white text-gray-700 text-sm placeholder-gray-700 h-full px-e12 rounded-sm focus:outline-none"
+              placeholder="{{ 'general.search.placeholder' | t }}"
+              name="q"
+              value="{{ search.terms | escape }}">
+          </form>
+          <button @click="closeDesktopSearch" 
+            :tabindex="desktopSearchOpen ? '0' : '-1'"
+            class="text-white hover:translate-up  btn--icon focus:text-red-500" 
+            aria-label="hide site search">
+            <svg class="h-e36 w-e36">
+              <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#close-circle"></use>
+            </svg>
+          </button>
+        </div>
+      </li>
+      <li class="inline-block text-white px-e8 py-e16 md:px-e22 md:py-e28 md:pr-0">
+        <a class="hover:translate-up inline-block btn--icon focus:text-red-500 relative" href="/cart" aria-label="view shopping basket" @mouseover="handleCartModal">
+          <svg class="w-e28 h-e28">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#basket"></use>
+          </svg>
+          <span v-if="cart.item_count" class="absolute rounded-full bg-red-600 text-xs w-e20 h-e20 text-white items-center justify-center inline-flex cart-count z-10">
+            <span v-html="cart.item_count"></span>
+          </span>
+        </a>
+      </li>
+      <li class="md:hidden inline-block text-white px-e8 md:px-e12 py-e16 md:py-e28">
+        <button class="hover:translate-up btn--icon mx-auto focus:text-red-500" 
+          @click="() => mobileMenuOpen && !mobileSearchOpen ? closeMobileMenu() : openMobileMenu()" 
+          aria-label="view site navigation menu"
+          style="min-width: 40px;">
+          <svg v-if="mobileMenuOpen && !mobileSearchOpen" style="width: 17px; height: 17px;" class="hidden-until-vue-loaded text-red-700 mx-auto">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#mobile-menu-close"></use>
+          </svg>
+          <svg v-else style="width: 31px; height: 21px;" >
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#hamburger"></use>
+          </svg>
+        </button>
+      </li>
+    </ul>
+  </div>
+  <transition-expand :duration="300" class="hidden md:block">
+      <section v-show="desktopDropdownDrawerOpen" 
+        class="hidden-until-vue-loaded absolute left-0 w-full bg-white shadow-desktop-dropdown z-30" 
+        style="top: 100%;"
+        @mouseover="openDropdownDrawer"
+        @mouseout="closeDropdownDrawer">
+        <div is="focus-lock" :disabled="!desktopDropdownDrawerOpen">
+          {% for root in menu_roots %}
+            <div :class="{
+              'fade-in-delay-0': drawerStates[{{ forloop.index0 }}],
+              'desktop-drawer--active': drawerStates[{{ forloop.index0 }}]
+            }" 
+              tabindex="1"
+              class="desktop-drawer--{{forloop.index0}} desktop-drawer__content-container max-w-screen-lg mx-auto py-e40 px-e16 lg:px-0">
+              <div class="flex items-start">
+                {% render 'nav--desktop-menu-contents', root: root, index: forloop.index0 %}
+              </div>
+              <div class="fade-in-delay-500 space-x-e20">
+                {% assign i = 1 %}
+                {% for block in section.blocks %}
+                  {% if block.settings.group_id == root %}
+                    {% case block.type %}
+                      {% when 'btn_link_desktop' %}
+                        <a is="btn" 
+                          href="{{ block.settings.link_url }}" 
+                          tag="a"
+                          :button-classes="['py-e14', 'mt-e4', 'text-e14', 'block', 'button--secondary', 'w-auto', 'bg-gray-100', '{{ block.settings.text_color_class }}', 'button', 'uppercase', 'hover:border-red-500', 'border-gray-200', 'border']"
+                          :ripple-classes="['bg-red-200']">
+                          {{ block.settings.link_text }}
+                          <svg is="icon" name="caret-right" size="10px" class="ml-e2 inline-block align-baseline"></svg>
+                        </a>
+                    {% endcase %}
+                    {% assign i = i | plus: 1 %}
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <button role="button" class="focus-only-button" @click="closeDropdownDrawer">Close Menu</button>
+            </div>
+          {% endfor %}
+      </div>
+    </section>
+  </transition-expand>
+  <transition-menu name="slide-in-right" target="#navbar" :duration="300" class="md:hidden">
+    <div class="nav__mobile-menu hidden-until-vue-loaded absolute bg-gray-100 w-full overflow-y-auto max-h-full h-full z-30" v-show="mobileMenuOpen">
+      {% render 'nav--mobile-menu-contents', menu_roots: menu_roots, section: section  %}
+    </div>
+  </transition-menu>
+</nav>
+
+{% schema %}
+  {
+    "name": "Navigation Header",
+    "settings": [
+      {
+        "type": "text",
+        "id": "discover_link_1_text",
+        "label": "Discover Link 1",
+        "info": "http://i.bvaccel.com/NDeBMV"
+      },
+      {
+        "type": "url",
+        "id": "discover_link_1_url",
+        "label": "Discover Link 1 URL",
+        "info": "http://i.bvaccel.com/NDeBMV"
+      },
+      {
+        "type": "text",
+        "id": "discover_link_2_text",
+        "label": "Discover Link 2",
+        "info": "http://i.bvaccel.com/DZL1UM"
+      },
+      {
+        "type": "url",
+        "id": "discover_link_2_url",
+        "label": "Discover Link 2 URL",
+        "info": "http://i.bvaccel.com/DZL1UM"
+      },
+      {
+        "type": "image_picker",
+        "id": "logo",
+        "label": "Logo image"
+      },
+      {
+        "type": "link_list",
+        "id": "support_linklist",
+        "label": "Support Link List",
+        "info": "This appears only in the mobile menu"
+      },
+      {
+        "type": "link_list",
+        "id": "mobile_additional_links",
+        "label": "Mobile Additional Links",
+        "info": "This appears only in the mobile menu"
+      }
+    ],
+    "blocks":[
+      {
+        "type": "search_suggestion",
+        "name": "Search Suggestion",
+        "settings": [
+          {
+            "type": "text",
+            "id": "suggestion",
+            "label": "Key words"
+          }
+        ]
+      },
+      {
+        "type": "product_set",
+        "name": "Product Group",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "collection",
+            "id": "product_collection",
+            "label": "Product Collection"
+          },
+          {
+            "type": "text",
+            "id": "heading",
+            "label": "Heading"
+          },
+          {
+            "type": "text",
+            "id": "subheading",
+            "label": "Subheading"
+          }
+        ]
+      },
+      {
+        "type": "btn_link",
+        "name": "Button Link Mobile",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "url",
+            "id": "link_url",
+            "label": "Link URL"
+          },
+          {
+            "type": "text",
+            "id": "link_text",
+            "label": "Link Text"
+          },
+          {
+            "type": "select",
+            "id": "text_color_class",
+            "label": "Button Text Color",
+            "options": [{"value":"text-gray-100","label":"Gray 100"},{"value":"text-gray-200","label":"Gray 200"},{"value":"text-gray-300","label":"Gray 300"},{"value":"text-gray-400","label":"Gray 400"},{"value":"text-gray-500","label":"Gray 500"},{"value":"text-gray-600","label":"Gray 600"},{"value":"text-gray-700","label":"Gray 700"},{"value":"text-red-200","label":"Red 200"},{"value":"text-red-400","label":"Red 400"},{"value":"text-red-500","label":"Red 500"},{"value":"text-red-700","label":"Red 700"},{"value":"text-blue-200","label":"Blue 200"},{"value":"text-blue-500","label":"Blue 500"},{"value":"text-blue-700","label":"Blue 700"},{"value":"text-green-200","label":"Green 200"},{"value":"text-green-500","label":"Green 500"},{"value":"text-green-700","label":"Green 700"},{"value":"text-yellow-200","label":"Yellow 200"},{"value":"text-yellow-500","label":"Yellow 500"},{"value":"text-yellow-700","label":"Yellow 700"},{"value":"text-black","label":"Black"},{"value":"text-white","label":"White"},{"value":"text-transparent","label":"Transparent"},{"value":"text-current","label":"Current"}],
+            "default": "text-black"
+          }
+        ]
+      },
+      {
+        "type": "traditional_link_list",
+        "name": "List of Normal Links",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "text",
+            "id": "heading",
+            "label": "Link List Heading"
+          },
+          {
+            "type": "link_list",
+            "id": "linklist",
+            "label": "Link List"
+          }
+        ]
+      },
+      {
+        "type": "bg_img_block",
+        "name": "Bg Img Block w/ Text",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "text",
+            "id": "overlay_copy",
+            "label": "Overlay Copy"
+          },
+          {
+            "type": "image_picker",
+            "id": "bg_img",
+            "label": "Background Image"
+          },
+          {
+            "type": "url",
+            "id": "url",
+            "label": "Link URL"
+          }
+        ]
+      },
+      {
+        "type": "btn_link_desktop",
+        "name": "Button Link Desktop",
+        "settings": [
+          {
+            "type": "paragraph",
+            "content": "Appears in a row at the bottom of a dropdown menu http://i.bvaccel.com/va8esH"
+          },
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "url",
+            "id": "link_url",
+            "label": "Link URL"
+          },
+          {
+            "type": "text",
+            "id": "link_text",
+            "label": "Link Text"
+          },
+          {
+            "type": "select",
+            "id": "text_color_class",
+            "label": "Button Text Color",
+            "options": [{"value":"text-gray-100","label":"Gray 100"},{"value":"text-gray-200","label":"Gray 200"},{"value":"text-gray-300","label":"Gray 300"},{"value":"text-gray-400","label":"Gray 400"},{"value":"text-gray-500","label":"Gray 500"},{"value":"text-gray-600","label":"Gray 600"},{"value":"text-gray-700","label":"Gray 700"},{"value":"text-red-200","label":"Red 200"},{"value":"text-red-400","label":"Red 400"},{"value":"text-red-500","label":"Red 500"},{"value":"text-red-700","label":"Red 700"},{"value":"text-blue-200","label":"Blue 200"},{"value":"text-blue-500","label":"Blue 500"},{"value":"text-blue-700","label":"Blue 700"},{"value":"text-green-200","label":"Green 200"},{"value":"text-green-500","label":"Green 500"},{"value":"text-green-700","label":"Green 700"},{"value":"text-yellow-200","label":"Yellow 200"},{"value":"text-yellow-500","label":"Yellow 500"},{"value":"text-yellow-700","label":"Yellow 700"},{"value":"text-black","label":"Black"},{"value":"text-white","label":"White"},{"value":"text-transparent","label":"Transparent"},{"value":"text-current","label":"Current"}],
+            "default": "text-black"
+          }
+        ]
+      }
+    ]
+  }
+{% endschema %}
