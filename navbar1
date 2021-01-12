@@ -1,67 +1,364 @@
-<div id="shopify-section-nav--navbar" class="shopify-section">
+{% comment %} 
+  BEGIN SETUP
+  We need to figure out how many menu roots there are: uniq(blocks.map.(b => b.settings.group_id))
+{% endcomment %}
+{% assign menu_roots = '' %}
+{% for block in section.blocks %}
+  {% unless block.settings.group_id == blank or block.settings.group_id == '' %}
+    {% assign menu_roots = menu_roots | append: block.settings.group_id %}
+    {% unless forloop.last %}
+      {% assign menu_roots = menu_roots | append: ',' %}
+    {% endunless %}
+  {% endunless %}
+{% endfor %}
+{% assign menu_roots = menu_roots | split: ',' | uniq %}
 
+{% comment %} END SETUP {% endcomment %}
 
+{% capture props %}
+{
+  "drawerCount": {{ menu_roots | size | json }}
+}
+{% endcapture %}
 
+<nav class="bg-black md:px-e16 md:py-0 relative"
+  v-scroll-lock="mobileMenuOpen"
+  id="navbar"
+  data-vue-component="NavBar"
+  data-props="{{ props | strip | escape }}"
+  :class="{'navbar-search--open': desktopSearchOpen}">
+  <div class="max-w-screen-lg flex justify-between items-center mx-auto">
+    <a itemscope itemtype="http://schema.org/Brand" class="navbar-flex-item-1 pl-e16 md:pl-0" href="/" aria-label="Go to homepage">
+      <h1>
+        <span class="hidden" itemprop="name">Juiced Bikes</span>
+        <img class="h-e36 md:h-e56" src="{{ section.settings.logo | img_url: '350x' }}" alt="Juiced Bikes Logo" itemprop="logo">
+      </h1>
+    </a>
+    <ul class="navbar-flex-item-2 hidden md:inline-block text-center">
+      {% for root in menu_roots %}
+        <li class="inline-block"
+          @mouseover="openDrawerAndShowContentByIndex({{ forloop.index0 }})" 
+          @mouseout="closeDrawerAndHideContentByIndex({{ forloop.index0 }})">
+          <button @click="toggleDrawerAndShowContentByIndex({{ forloop.index0 }})"
+            class="drawer-link p-e16 diag-line-effect uppercase font-bold futura-bold text-body-md text-white tracking-normal focus:shadow-outline focus:outline-none"
+            :class="{'active': drawerStates[{{ forloop.index0 }}]}">
+            <span class="diag-line-effect__target bg-black">{{ root }}</span>
+            <span class="diag-line-effect__line"></span>
+          </button>
+        </li>
+      {% endfor %}
+    </ul>
+    <ul class="navbar-flex-item-3 flex items-center text-0 justify-end">
+      <li class="navbar-search inline-flex items-center text-white px-e8 md:px-e12 py-e16 md:py-e28 space-x-e12 ">
+        <button class="md:hidden box-content hover:translate-up  btn--icon focus:text-red-500" 
+          @click="mobileSearchOpen ? closeMobileSearch() : openMobileSearch()" 
+          aria-label="search the website"
+          style="min-width: 31px; min-height: 31px;">
+          <svg v-if="mobileSearchOpen" style="width: 17px; height: 17px;" class="hidden-until-vue-loaded text-red-700 mx-auto">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#mobile-menu-close"></use>
+          </svg>
+          <svg v-else class="w-e22 h-e22 mx-auto" >
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use>
+          </svg>
+        </button>
+        <button class="hidden md:block hover:translate-up  btn--icon focus:text-red-500" @click="openDesktopSearch" aria-label="search the website">
+          <svg class="w-e22 h-e22">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use>
+          </svg>
+        </button>
+        <div class="navbar-search__form hidden-until-loaded items-center space-x-e8 bg-black hidden md:inline-flex">
+          <form class="inline-block bg-black" 
+            style="height: 40px;"
+            method="get"
+            action="/search">
+            <input type="search"
+              aria-label="search the site"
+              :tabindex="desktopSearchOpen ? '0' : '-1'"
+              class="pointer-events-none bg-white text-gray-700 text-sm placeholder-gray-700 h-full px-e12 rounded-sm focus:outline-none"
+              placeholder="{{ 'general.search.placeholder' | t }}"
+              name="q"
+              value="{{ search.terms | escape }}">
+          </form>
+          <button @click="closeDesktopSearch" 
+            :tabindex="desktopSearchOpen ? '0' : '-1'"
+            class="text-white hover:translate-up  btn--icon focus:text-red-500" 
+            aria-label="hide site search">
+            <svg class="h-e36 w-e36">
+              <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#close-circle"></use>
+            </svg>
+          </button>
+        </div>
+      </li>
+      <li class="inline-block text-white px-e8 py-e16 md:px-e22 md:py-e28 md:pr-0">
+        <a class="hover:translate-up inline-block btn--icon focus:text-red-500 relative" href="/cart" aria-label="view shopping basket" @mouseover="handleCartModal">
+          <svg class="w-e28 h-e28">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#basket"></use>
+          </svg>
+          <span v-if="cart.item_count" class="absolute rounded-full bg-red-600 text-xs w-e20 h-e20 text-white items-center justify-center inline-flex cart-count z-10">
+            <span v-html="cart.item_count"></span>
+          </span>
+        </a>
+      </li>
+      <li class="md:hidden inline-block text-white px-e8 md:px-e12 py-e16 md:py-e28">
+        <button class="hover:translate-up btn--icon mx-auto focus:text-red-500" 
+          @click="() => mobileMenuOpen && !mobileSearchOpen ? closeMobileMenu() : openMobileMenu()" 
+          aria-label="view site navigation menu"
+          style="min-width: 40px;">
+          <svg v-if="mobileMenuOpen && !mobileSearchOpen" style="width: 17px; height: 17px;" class="hidden-until-vue-loaded text-red-700 mx-auto">
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#mobile-menu-close"></use>
+          </svg>
+          <svg v-else style="width: 31px; height: 21px;" >
+            <use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#hamburger"></use>
+          </svg>
+        </button>
+      </li>
+    </ul>
+  </div>
+  <transition-expand :duration="300" class="hidden md:block">
+      <section v-show="desktopDropdownDrawerOpen" 
+        class="hidden-until-vue-loaded absolute left-0 w-full bg-white shadow-desktop-dropdown z-30" 
+        style="top: 100%;"
+        @mouseover="openDropdownDrawer"
+        @mouseout="closeDropdownDrawer">
+        <div is="focus-lock" :disabled="!desktopDropdownDrawerOpen">
+          {% for root in menu_roots %}
+            <div :class="{
+              'fade-in-delay-0': drawerStates[{{ forloop.index0 }}],
+              'desktop-drawer--active': drawerStates[{{ forloop.index0 }}]
+            }" 
+              tabindex="1"
+              class="desktop-drawer--{{forloop.index0}} desktop-drawer__content-container max-w-screen-lg mx-auto py-e40 px-e16 lg:px-0">
+              <div class="flex items-start">
+                {% render 'nav--desktop-menu-contents', root: root, index: forloop.index0 %}
+              </div>
+              <div class="fade-in-delay-500 space-x-e20">
+                {% assign i = 1 %}
+                {% for block in section.blocks %}
+                  {% if block.settings.group_id == root %}
+                    {% case block.type %}
+                      {% when 'btn_link_desktop' %}
+                        <a is="btn" 
+                          href="{{ block.settings.link_url }}" 
+                          tag="a"
+                          :button-classes="['py-e14', 'mt-e4', 'text-e14', 'block', 'button--secondary', 'w-auto', 'bg-gray-100', '{{ block.settings.text_color_class }}', 'button', 'uppercase', 'hover:border-red-500', 'border-gray-200', 'border']"
+                          :ripple-classes="['bg-red-200']">
+                          {{ block.settings.link_text }}
+                          <svg is="icon" name="caret-right" size="10px" class="ml-e2 inline-block align-baseline"></svg>
+                        </a>
+                    {% endcase %}
+                    {% assign i = i | plus: 1 %}
+                  {% endif %}
+                {% endfor %}
+              </div>
+              <button role="button" class="focus-only-button" @click="closeDropdownDrawer">Close Menu</button>
+            </div>
+          {% endfor %}
+      </div>
+    </section>
+  </transition-expand>
+  <transition-menu name="slide-in-right" target="#navbar" :duration="300" class="md:hidden">
+    <div class="nav__mobile-menu hidden-until-vue-loaded absolute bg-gray-100 w-full overflow-y-auto max-h-full h-full z-30" v-show="mobileMenuOpen">
+      {% render 'nav--mobile-menu-contents', menu_roots: menu_roots, section: section  %}
+    </div>
+  </transition-menu>
+</nav>
 
-
-
-
-
-<nav id="navbar" data-vue-component="NavBar" data-props="{
-  &quot;drawerCount&quot;: 3
-}" class="bg-black md:px-e16 md:py-0 relative"><div class="max-w-screen-lg flex justify-between items-center mx-auto"><a itemscope="itemscope" itemtype="http://schema.org/Brand" href="/" aria-label="Go to homepage" class="navbar-flex-item-1 pl-e16 md:pl-0"><h1><span itemprop="name" class="hidden">Juiced Bikes</span> <img src="//cdn.shopify.com/s/files/1/1009/9108/files/logo_black_350x.png?v=1596809896" alt="Juiced Bikes Logo" itemprop="logo" class="h-e36 md:h-e56"></h1></a> <ul class="navbar-flex-item-2 hidden md:inline-block text-center"><li class="inline-block"><button class="drawer-link p-e16 diag-line-effect uppercase font-bold futura-bold text-body-md text-white tracking-normal focus:shadow-outline focus:outline-none"><span class="diag-line-effect__target bg-black">E-Bikes</span> <span class="diag-line-effect__line"></span></button></li> <li class="inline-block"><button class="drawer-link p-e16 diag-line-effect uppercase font-bold futura-bold text-body-md text-white tracking-normal focus:shadow-outline focus:outline-none"><span class="diag-line-effect__target bg-black">Accessories</span> <span class="diag-line-effect__line"></span></button></li> <li class="inline-block"><button class="drawer-link p-e16 diag-line-effect uppercase font-bold futura-bold text-body-md text-white tracking-normal focus:shadow-outline focus:outline-none"><span class="diag-line-effect__target bg-black">Discover</span> <span class="diag-line-effect__line"></span></button></li></ul> <ul class="navbar-flex-item-3 flex items-center text-0 justify-end"><li class="navbar-search inline-flex items-center text-white px-e8 md:px-e12 py-e16 md:py-e28 space-x-e12 "><button aria-label="search the website" class="md:hidden box-content hover:translate-up  btn--icon focus:text-red-500" style="min-width: 31px; min-height: 31px;"><svg class="w-e22 h-e22 mx-auto"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use></svg></button> <button aria-label="search the website" class="hidden md:block hover:translate-up  btn--icon focus:text-red-500"><svg class="w-e22 h-e22"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use></svg></button> <div class="navbar-search__form hidden-until-loaded items-center space-x-e8 bg-black hidden md:inline-flex"><form method="get" action="/search" class="inline-block bg-black" style="height: 40px;"><input type="search" aria-label="search the site" tabindex="-1" placeholder="Search:" name="q" value="" class="pointer-events-none bg-white text-gray-700 text-sm placeholder-gray-700 h-full px-e12 rounded-sm focus:outline-none"></form> <button tabindex="-1" aria-label="hide site search" class="text-white hover:translate-up  btn--icon focus:text-red-500"><svg class="h-e36 w-e36"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#close-circle"></use></svg></button></div></li> <li class="inline-block text-white px-e8 py-e16 md:px-e22 md:py-e28 md:pr-0"><a href="/cart" aria-label="view shopping basket" class="hover:translate-up inline-block btn--icon focus:text-red-500 relative"><svg class="w-e28 h-e28"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#basket"></use></svg> <!----></a></li> <li class="md:hidden inline-block text-white px-e8 md:px-e12 py-e16 md:py-e28"><button aria-label="view site navigation menu" class="hover:translate-up btn--icon mx-auto focus:text-red-500" style="min-width: 40px;"><svg style="width: 31px; height: 21px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#hamburger"></use></svg></button></li></ul></div> <section data-v-805fe00e="" class="hidden-until-vue-loaded absolute left-0 w-full bg-white shadow-desktop-dropdown z-30 hidden md:block" style="top: 100%; display: none;"><div><div tabindex="-1"></div> <div tabindex="-1"></div> <div data-lock=""><div tabindex="1" class="desktop-drawer--0 desktop-drawer__content-container max-w-screen-lg mx-auto py-e40 px-e16 lg:px-0"><div class="flex items-start"><section class="w-1/4 product-set navbar__product-set fade-in-delay-400" style="animation-duration: 600ms;"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">Scorpion</h1> <p class="text-e14 mt-e8 pb-e12 border-b border-solid border-gray-300 text-gray-700 leading-9 font-500 oblique">Moped-Style E-Bike</p> <div class="py-e16 space-y-e16"><a aria-labelledby="nav-product-set-caption-0" href="/products/scorpion" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/Scorpion-Blue-RtSidecopy_200x.jpg?v=1603736342" alt="" class="product-img"> <figcaption id="nav-product-set-caption-0"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      Scorpion
-                    </span></figcaption></figure></a> <a aria-labelledby="nav-product-set-caption-1" href="/products/hyperscorpion" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScorpion-Black-RtSide_200x.jpg?v=1603213930" alt="" class="product-img"> <figcaption id="nav-product-set-caption-1"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      HyperScorpion
-                    </span></figcaption></figure></a> <a aria-labelledby="nav-product-set-caption-2" href="/products/hyperscorpion-express" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScorpionExpress-RtSide_200x.jpg?v=1606181605" alt="" class="product-img"> <figcaption id="nav-product-set-caption-2"><span class="block space-x-e4 mb-e8 ml-e12"><span class="badge badge--new px-e8 py-e4 text-white bg-green-500 rounded-sm text-e11 font-medium uppercase">New</span></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      HyperScorpion Express
-                    </span></figcaption></figure></a></div></section> <section class="w-1/4 product-set navbar__product-set fade-in-delay-500" style="animation-duration: 600ms;"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">Scrambler</h1> <p class="text-e14 mt-e8 pb-e12 border-b border-solid border-gray-300 text-gray-700 leading-9 font-500 oblique">Fast &amp; Fun Adventure E-Bike</p> <div class="py-e16 space-y-e16"><a aria-labelledby="nav-product-set-caption-0" href="/products/scrambler" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CampScrambler-Black-RtSide_200x.jpg?v=1608229422" alt="" class="product-img"> <figcaption id="nav-product-set-caption-0"><span class="block space-x-e4 mb-e8 ml-e12"><span class="badge badge--sale px-e8 py-e4 text-white bg-red-500 rounded-sm text-e11 font-medium uppercase">Sale</span></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      Scrambler
-                    </span></figcaption></figure></a> <a aria-labelledby="nav-product-set-caption-1" href="/products/hyperscrambler-2" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScrambler-Alum-RtSide_200x.jpg?v=1602016874" alt="" class="product-img"> <figcaption id="nav-product-set-caption-1"><span class="block space-x-e4 mb-e8 ml-e12"><span class="badge badge--new px-e8 py-e4 text-white bg-green-500 rounded-sm text-e11 font-medium uppercase">New</span> <span class="badge badge--sale px-e8 py-e4 text-white bg-red-500 rounded-sm text-e11 font-medium uppercase">Sale</span></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      NEW HyperScrambler 2
-                    </span></figcaption></figure></a></div></section> <section class="w-1/4 product-set navbar__product-set fade-in-delay-600" style="animation-duration: 600ms;"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">CrossCurrent</h1> <p class="text-e14 mt-e8 pb-e12 border-b border-solid border-gray-300 text-gray-700 leading-9 font-500 oblique">The Top-Rated Commuter E-Bike</p> <div class="py-e16 space-y-e16"><a aria-labelledby="nav-product-set-caption-0" href="/products/crosscurrentx" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CCX-Red-Side-Right-New-_2500px_1024x1024_76a1c844-5dfe-4474-8260-cee693489368_200x.jpg?v=1603150947" alt="" class="product-img"> <figcaption id="nav-product-set-caption-0"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      CrossCurrent X
-                    </span></figcaption></figure></a> <a aria-labelledby="nav-product-set-caption-1" href="/products/crosscurrent-s2" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CCS2_1_c1356ee8-bf53-4749-8ba8-2fa38f244aea_200x.jpg?v=1601999850" alt="" class="product-img"> <figcaption id="nav-product-set-caption-1"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      CrossCurrent S2
-                    </span></figcaption></figure></a></div></section> <section class="w-1/4 product-set navbar__product-set fade-in-delay-700" style="animation-duration: 600ms;"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">RipCurrent</h1> <p class="text-e14 mt-e8 pb-e12 border-b border-solid border-gray-300 text-gray-700 leading-9 font-500 oblique">Ultimate Fat Tire E-Bike</p> <div class="py-e16 space-y-e16"><a aria-labelledby="nav-product-set-caption-0" href="/products/ripcurrent" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/RCB_Side_ba715f97-67b6-404a-bf46-bc740f869bfb_200x.jpg?v=1602683733" alt="" class="product-img"> <figcaption id="nav-product-set-caption-0"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      RipCurrent
-                    </span></figcaption></figure></a> <a aria-labelledby="nav-product-set-caption-1" href="/products/ripcurrent-s" class="block focus:product-set-shadow hover:product-set-shadow transition-shadow duration-300"><figure class="flex items-center bg-white py-e8"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/RipCurrentS-Red-RtSide_200x.jpg?v=1608232002" alt="" class="product-img"> <figcaption id="nav-product-set-caption-1"><span class="block space-x-e4 mb-e8 ml-e12"></span> <span class="block text-black text-e16 md:text-e14 lg:text-e16 font-bold tracking-tighter ml-e12">
-                      RipCurrent S
-                    </span></figcaption></figure></a></div></section></div> <div class="fade-in-delay-500 space-x-e20"><a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-auto bg-gray-100 text-red-500 button uppercase hover:border-red-500 border-gray-200 border" href="/pages/bike-quiz"><span class="btn__content relative z-20">
-                          Which E-Bike is for me?
-                          <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-auto bg-gray-100 text-black button uppercase hover:border-red-500 border-gray-200 border" href="/pages/compare-bikes"><span class="btn__content relative z-20">
-                          Compare Models
-                          <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-auto bg-gray-100 text-black button uppercase hover:border-red-500 border-gray-200 border" href="/collections/e-bikes"><span class="btn__content relative z-20">
-                          Shop all E-Bikes
-                          <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a></div> <button role="button" class="focus-only-button">Close Menu</button></div> <div tabindex="1" class="desktop-drawer--1 desktop-drawer__content-container max-w-screen-lg mx-auto py-e40 px-e16 lg:px-0"><div class="flex items-start"><section class="w-1/4 fade-in-delay-200 navbar__trad-linklist trad-linklist-section mt-e20" style="animation-duration: 600ms;"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/upgrades">Upgrade</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/alarms" class="link--nav tracking-tighter font-light">Alarms &amp; Locks</a></li> <li><a href="/collections/fenders" class="link--nav tracking-tighter font-light">Fenders</a></li> <li><a href="/collections/off-road-throttle" class="link--nav tracking-tighter font-light">Off-Road Kit</a></li> <li><a href="/products/phone-mount-with-charger" class="link--nav tracking-tighter font-light">Phone Mount</a></li> <li><a href="/products/passenger-seat-kit" class="link--nav tracking-tighter font-light">Passenger Kit</a></li> <li><a href="/collections/racks" class="link--nav tracking-tighter font-light">Racks</a></li> <li><a href="/collections/seat-upgrades" class="link--nav tracking-tighter font-light">Seat Upgrades</a></li></ul></section> <section class="w-1/4 fade-in-delay-300 navbar__trad-linklist trad-linklist-section mt-e20" style="animation-duration: 600ms;"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/gear-1">Gear</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/bags" class="link--nav tracking-tighter font-light">Bags</a></li> <li><a href="/products/custom-race-plate-decals" class="link--nav tracking-tighter font-light">Decals</a></li> <li><a href="/collections/hats-shirts" class="link--nav tracking-tighter font-light">Hats &amp; Shirts</a></li> <li><a href="/products/juiced-bikes-horn" class="link--nav tracking-tighter font-light">Horn</a></li> <li><a href="/collections/helmets" class="link--nav tracking-tighter font-light">Helmets</a></li> <li><a href="/collections/tools" class="link--nav tracking-tighter font-light">Tools</a></li></ul></section> <section class="w-1/4 fade-in-delay-400 navbar__trad-linklist trad-linklist-section mt-e20" style="animation-duration: 600ms;"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/components">Components</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/batteries" class="link--nav tracking-tighter font-light">Batteries</a></li> <li><a href="/collections/cables" class="link--nav tracking-tighter font-light">Cables</a></li> <li><a href="/collections/chargers-1" class="link--nav tracking-tighter font-light">Chargers</a></li> <li><a href="/collections/electrical" class="link--nav tracking-tighter font-light">Electrical</a></li> <li><a href="/collections/mirrors" class="link--nav tracking-tighter font-light">Mirrors</a></li> <li><a href="/collections/parts" class="link--nav tracking-tighter font-light">Replacement Parts</a></li> <li><a href="/collections/tires-and-wheels" class="link--nav tracking-tighter font-light">Tires &amp; Wheels</a></li></ul></section></div> <div class="fade-in-delay-500 space-x-e20"></div> <button role="button" class="focus-only-button">Close Menu</button></div> <div tabindex="1" class="desktop-drawer--2 desktop-drawer__content-container max-w-screen-lg mx-auto py-e40 px-e16 lg:px-0"><div class="flex items-start"><a href="/pages/about" aria-labelledby="nav-img-block-caption-11" class="w-1/5 fade-in-delay-100 block font-medium mt-e4 mb-e16 rounded-sm" style="background-image: url(&quot;&quot;); animation-duration: 600ms;"><figure class="ratio ro-74 flex items-center justify-center hover:slow-zoom-in rounded-sm"><img src="//cdn.shopify.com/s/files/1/1009/9108/files/ParkAmstutz_JBSO_33_copy_400x.jpg?v=1601942403" alt="" class=" slow-zoom-in__subject w-full h-full absolute object-contain rounded-sm"> <figcaption id="nav-img-block-caption-11" class="absolute z-10 px-e24 tracking-tight md:tracking-normal text-white text-e20 md:text-e24 font-medium text-shadow-1">
-              Juiced Advantage
-            </figcaption></figure></a> <a href="/blogs/news" aria-labelledby="nav-img-block-caption-12" class="w-1/5 fade-in-delay-200 block font-medium mt-e4 mb-e16 rounded-sm" style="background-image: url(&quot;&quot;); animation-duration: 600ms;"><figure class="ratio ro-74 flex items-center justify-center hover:slow-zoom-in rounded-sm"><img src="//cdn.shopify.com/s/files/1/1009/9108/files/tylerwayneglass_creatorP9180218_1_400x.jpg?v=1601914101" alt="" class=" slow-zoom-in__subject w-full h-full absolute object-contain rounded-sm"> <figcaption id="nav-img-block-caption-12" class="absolute z-10 px-e24 tracking-tight md:tracking-normal text-white text-e20 md:text-e24 font-medium text-shadow-1">
-              Blog Updates
-            </figcaption></figure></a> <a href="/pages/52v-ebike-battery" aria-labelledby="nav-img-block-caption-13" class="w-1/5 fade-in-delay-300 block font-medium mt-e4 mb-e16 rounded-sm" style="background-image: url(&quot;&quot;); animation-duration: 600ms;"><figure class="ratio ro-74 flex items-center justify-center hover:slow-zoom-in rounded-sm"><img src="//cdn.shopify.com/s/files/1/1009/9108/files/jake_is_exploring-6Q3A5955_400x.jpg?v=1601919232" alt="" class=" slow-zoom-in__subject w-full h-full absolute object-contain rounded-sm"> <figcaption id="nav-img-block-caption-13" class="absolute z-10 px-e24 tracking-tight md:tracking-normal text-white text-e20 md:text-e24 font-medium text-shadow-1">
-              Ride Faster &amp; Farther
-            </figcaption></figure></a> <ul class="ml-auto width-1/4 fade-in-delay-600 space-y-e8"><li><a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold ml-auto w-full navbar__btn-link py-e14 mt-e4 text-e14 block button--secondary bg-gray-100 button uppercase hover:border-red-500 border-gray-200 border" href="/pages/support-center" style="min-width: 216px;"><span class="btn__content relative z-20">
-          Support Center
-          <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a></li> <li><a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold ml-auto w-full navbar__btn-link py-e14 mt-e4 text-e14 block button--secondary bg-gray-100 button uppercase hover:border-red-500 border-gray-200 border" href="/blogs/news/your-electric-bike-buyers-guide-introduction-into-selecting-the-perfect-ebike" style="min-width: 216px;"><span class="btn__content relative z-20">
-          E-Bikes 101
-          <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a></li></ul></div> <div class="fade-in-delay-500 space-x-e20"></div> <button role="button" class="focus-only-button">Close Menu</button></div></div> <div tabindex="-1"></div></div></section> <div class="nav__mobile-menu hidden-until-vue-loaded absolute bg-gray-100 w-full overflow-y-auto max-h-full h-full z-30 md:hidden" style="display: none;" name="slide-in-right"><div class="mobile-menu-contents"><div class="px-e24 pt-e24 mobile-menu-contents__level-1"><ul class="space-y-e28"><li><button class="link--primary text-e28 leading-7 font-semibold">E-Bikes<svg class="icon icon--caret-right" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></button></li> <li><button class="link--primary text-e28 leading-7 font-semibold">Accessories<svg class="icon icon--caret-right" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></button></li> <li><button class="link--primary text-e28 leading-7 font-semibold">Discover<svg class="icon icon--caret-right" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></button></li></ul> <ul class="mt-e28 pt-e24 space-y-e24 border-t border-gray-300 border-solid"><li><button class="link--primary text-e18 font-semibold leading-8">Support<svg class="icon icon--caret-right" style="height: 12px; width: 12px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></button></li> <li class="text-e18 font-semibold leading-8"><a href="/pages/bike-quiz">Which E-Bike is For Me?</a></li> <li class="text-e18 font-semibold leading-8"><a href="/pages/e-bikes-101">E-Bike 101</a></li> <li class="text-e18 font-semibold leading-8"><a href="/account">Account</a></li></ul></div> <div class="overflow-y-auto max-h-full h-full px-e24 pt-e24 pb-e200 hidden-until-vue-loaded absolute top-0 bg-gray-100 w-full" style="display: none;"><button class="link--primary--left text-e28 leading-7 mb-e12 font-semibold"><svg class="icon icon--caret-left" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-left"></use></svg>E-Bikes</button> <div class="leading-9"><a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-red-500 button uppercase hover:border-red-500 border-gray-200 border" href="/pages/bike-quiz"><span class="btn__content relative z-20">
-                    Which E-bike is for me?
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-black button uppercase hover:border-red-500 border-gray-200 border" href="/pages/compare-bikes"><span class="btn__content relative z-20">
-                    Compare Models
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-black button uppercase hover:border-red-500 border-gray-200 border" href="/collections/e-bikes"><span class="btn__content relative z-20">
-                    Shop All E-Bikes
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <section class="product-set pt-e16"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">Scorpion</h1> <p class="text-e14 mt-e4 text-gray-700 leading-9 font-500 oblique">Moped-Style E-Bike</p> <div class="py-e16 space-y-e16"><a href="/products/scorpion" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/Scorpion-Blue-RtSidecopy_200x.jpg?v=1603736342" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">Scorpion</figcaption></a> <a href="/products/hyperscorpion" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScorpion-Black-RtSide_200x.jpg?v=1603213930" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">HyperScorpion</figcaption></a> <a href="/products/hyperscorpion-express" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScorpionExpress-RtSide_200x.jpg?v=1606181605" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">HyperScorpion Express</figcaption></a></div></section> <section class="product-set pt-e16"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">Scrambler</h1> <p class="text-e14 mt-e4 text-gray-700 leading-9 font-500 oblique">Fast &amp; Fun Adventure E-Bike</p> <div class="py-e16 space-y-e16"><a href="/products/scrambler" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CampScrambler-Black-RtSide_200x.jpg?v=1608229422" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">Scrambler</figcaption></a> <a href="/products/hyperscrambler-2" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/HyperScrambler-Alum-RtSide_200x.jpg?v=1602016874" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">NEW HyperScrambler 2</figcaption></a></div></section> <section class="product-set pt-e16"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">CrossCurrent</h1> <p class="text-e14 mt-e4 text-gray-700 leading-9 font-500 oblique">The Top-Rated Commuter E-Bike</p> <div class="py-e16 space-y-e16"><a href="/products/crosscurrentx" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CCX-Red-Side-Right-New-_2500px_1024x1024_76a1c844-5dfe-4474-8260-cee693489368_200x.jpg?v=1603150947" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">CrossCurrent X</figcaption></a> <a href="/products/crosscurrent-s2" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/CCS2_1_c1356ee8-bf53-4749-8ba8-2fa38f244aea_200x.jpg?v=1601999850" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">CrossCurrent S2</figcaption></a></div></section> <section class="product-set pt-e16"><h1 class="text-e24 tracking-tight text-black font-bold leading-7">RipCurrent</h1> <p class="text-e14 mt-e4 text-gray-700 leading-9 font-500 oblique">Ultimate Fat Tire E-Bike</p> <div class="py-e16 space-y-e16"><a href="/products/ripcurrent" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/RCB_Side_ba715f97-67b6-404a-bf46-bc740f869bfb_200x.jpg?v=1602683733" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">RipCurrent</figcaption></a> <a href="/products/ripcurrent-s" class="flex items-center"><figure class="bg-white px-e8 py-e4"><img src="//cdn.shopify.com/s/files/1/1009/9108/products/RipCurrentS-Red-RtSide_200x.jpg?v=1608232002" alt="" class="product-img w-24"></figure> <figcaption class="text-black text-e16 font-bold tracking-tighter ml-e16">RipCurrent S</figcaption></a></div></section></div></div> <div class="overflow-y-auto max-h-full h-full px-e24 pt-e24 pb-e200 hidden-until-vue-loaded absolute top-0 bg-gray-100 w-full" style="display: none;"><button class="link--primary--left text-e28 leading-7 mb-e12 font-semibold"><svg class="icon icon--caret-left" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-left"></use></svg>Accessories</button> <div class="leading-9"><a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-black button uppercase hover:border-red-500 border-gray-200 border" href="/collections/accessories"><span class="btn__content relative z-20">
-                    Shop all accessories
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <section class="trad-linklist-section mt-e20"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/upgrades">Upgrade</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/alarms" class="link--nav tracking-tighter">Alarms &amp; Locks</a></li> <li><a href="/collections/fenders" class="link--nav tracking-tighter">Fenders</a></li> <li><a href="/collections/off-road-throttle" class="link--nav tracking-tighter">Off-Road Kit</a></li> <li><a href="/products/phone-mount-with-charger" class="link--nav tracking-tighter">Phone Mount</a></li> <li><a href="/products/passenger-seat-kit" class="link--nav tracking-tighter">Passenger Kit</a></li> <li><a href="/collections/racks" class="link--nav tracking-tighter">Racks</a></li> <li><a href="/collections/seat-upgrades" class="link--nav tracking-tighter">Seat Upgrades</a></li></ul></section> <section class="trad-linklist-section mt-e20"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/gear-1">Gear</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/bags" class="link--nav tracking-tighter">Bags</a></li> <li><a href="/products/custom-race-plate-decals" class="link--nav tracking-tighter">Decals</a></li> <li><a href="/collections/hats-shirts" class="link--nav tracking-tighter">Hats &amp; Shirts</a></li> <li><a href="/products/juiced-bikes-horn" class="link--nav tracking-tighter">Horn</a></li> <li><a href="/collections/helmets" class="link--nav tracking-tighter">Helmets</a></li> <li><a href="/collections/tools" class="link--nav tracking-tighter">Tools</a></li></ul></section> <section class="trad-linklist-section mt-e20"><h1 class="text-e18 tracking-tighter font-medium mb-e16"><a href="/collections/components">Components</a></h1> <ul class="space-y-e12 pb-e20"><li><a href="/collections/batteries" class="link--nav tracking-tighter">Batteries</a></li> <li><a href="/collections/cables" class="link--nav tracking-tighter">Cables</a></li> <li><a href="/collections/chargers-1" class="link--nav tracking-tighter">Chargers</a></li> <li><a href="/collections/electrical" class="link--nav tracking-tighter">Electrical</a></li> <li><a href="/collections/mirrors" class="link--nav tracking-tighter">Mirrors</a></li> <li><a href="/collections/parts" class="link--nav tracking-tighter">Replacement Parts</a></li> <li><a href="/collections/tires-and-wheels" class="link--nav tracking-tighter">Tires &amp; Wheels</a></li></ul></section></div></div> <div class="overflow-y-auto max-h-full h-full px-e24 pt-e24 pb-e200 hidden-until-vue-loaded absolute top-0 bg-gray-100 w-full" style="display: none;"><button class="link--primary--left text-e28 leading-7 mb-e12 font-semibold"><svg class="icon icon--caret-left" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-left"></use></svg>Discover</button> <div class="leading-9"><a href="/pages/about" class="block px-e24 bg-cover py-e70 font-semibold mt-e4 mb-e16 tracking-tight bg-center bg-no-repeat text-white text-e20 rounded-sm" style="background-image: url(&quot;//cdn.shopify.com/s/files/1/1009/9108/files/ParkAmstutz_JBSO_33_copy_400x.jpg?v=1601942403&quot;);">
-                    Juiced Advantage
-                  </a> <a href="/blogs/news" class="block px-e24 bg-cover py-e70 font-semibold mt-e4 mb-e16 tracking-tight bg-center bg-no-repeat text-white text-e20 rounded-sm" style="background-image: url(&quot;//cdn.shopify.com/s/files/1/1009/9108/files/tylerwayneglass_creatorP9180218_1_400x.jpg?v=1601914101&quot;);">
-                    Blog Updates
-                  </a> <a href="/pages/52v-ebike-battery" class="block px-e24 bg-cover py-e70 font-semibold mt-e4 mb-e16 tracking-tight bg-center bg-no-repeat text-white text-e20 rounded-sm" style="background-image: url(&quot;//cdn.shopify.com/s/files/1/1009/9108/files/jake_is_exploring-6Q3A5955_400x.jpg?v=1601919232&quot;);">
-                    Ride Faster &amp; Farther
-                  </a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-black button uppercase hover:border-red-500 border-gray-200 border" href="/"><span class="btn__content relative z-20">
-                    E-Bike Guide
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a> <a class="btn rounded-sm relative overflow-hidden inline-flex justify-center transition-colors \ ease-linear duration-200 focus:outline-none font-bold py-e14 mt-e4 text-e14 block button--secondary w-full bg-white text-black button uppercase hover:border-red-500 border-gray-200 border" href="https://www.youtube.com/juicedbikes"><span class="btn__content relative z-20">
-                    Videos
-                    <svg class="ml-e2 inline-block align-baseline icon icon--caret-right" style="height: 10px; width: 10px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-right"></use></svg></span><span class="z-10 w-0 h-0 rounded-full ripple absolute inline-block bg-red-200" style="bottom: 0px; right: 0px;"></span></a></div></div> <div class="overflow-y-auto max-h-full h-full px-e24 pt-e24 pb-e200 hidden-until-vue-loaded absolute top-0 bg-gray-100 w-full" style="display: none;"><button class="link--primary--left text-e28 leading-7 mb-e12 font-semibold"><svg class="icon icon--caret-left" style="height: 16px; width: 16px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#caret-left"></use></svg>Support</button> <div class="leading-9"><ul class="space-y-e22 pt-e20"><li><a href="https://www.juicedbikes.com/pages/support-center" class="link--nav tracking-tighter">Contact</a></li> <li><a href="https://support.juicedbikes.com/hc/en-us" class="link--nav tracking-tighter">FAQ</a></li> <li><a href="/pages/bike-setup" class="link--nav tracking-tighter">New Bike Setup</a></li> <li><a href="/pages/shipping-and-returns" class="link--nav tracking-tighter">Shipping &amp; Returns</a></li> <li><a href="/pages/warranty" class="link--nav tracking-tighter">Warranty</a></li></ul></div></div> <div class="overflow-y-auto max-h-full h-full px-e24 pt-e24 pb-e200 hidden-until-vue-loaded absolute top-0 bg-gray-100 w-full" style="display: none;"><section class="leading-9"><form action="/search" method="get"><label for="mobile-search" class="block text-center mb-e20"><svg class="mr-e4 inline-block icon icon--magnifier" style="height: 24px; width: 24px;"><use xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="#magnifier"></use></svg> <span class="text-e22 font-medium">Search</span></label> <input type="search" id="mobile-search" name="q" placeholder="What are you looking for?" class="w-full p-e12 bg-white placeholder-gray-700 text-gray-700 text-e14 mb-e32"></form> <h1 class="text-e18 tracking-wider font-medium">Suggestions</h1> <ul class="space-y-e16 pt-e24"><li><a href="/search?q=E-Bikes" class="link--nav tracking-tighter">E-Bikes</a></li> <li><a href="/search?q=Batteries" class="link--nav tracking-tighter">Batteries</a></li> <li><a href="/search?q=Accessories" class="link--nav tracking-tighter">Accessories</a></li> <li><a href="/search?q=Speed" class="link--nav tracking-tighter">Speed</a></li></ul></section></div></div></div></nav>
-
-
-</div>
+{% schema %}
+  {
+    "name": "Navigation Header",
+    "settings": [
+      {
+        "type": "text",
+        "id": "discover_link_1_text",
+        "label": "Discover Link 1",
+        "info": "http://i.bvaccel.com/NDeBMV"
+      },
+      {
+        "type": "url",
+        "id": "discover_link_1_url",
+        "label": "Discover Link 1 URL",
+        "info": "http://i.bvaccel.com/NDeBMV"
+      },
+      {
+        "type": "text",
+        "id": "discover_link_2_text",
+        "label": "Discover Link 2",
+        "info": "http://i.bvaccel.com/DZL1UM"
+      },
+      {
+        "type": "url",
+        "id": "discover_link_2_url",
+        "label": "Discover Link 2 URL",
+        "info": "http://i.bvaccel.com/DZL1UM"
+      },
+      {
+        "type": "image_picker",
+        "id": "logo",
+        "label": "Logo image"
+      },
+      {
+        "type": "link_list",
+        "id": "support_linklist",
+        "label": "Support Link List",
+        "info": "This appears only in the mobile menu"
+      },
+      {
+        "type": "link_list",
+        "id": "mobile_additional_links",
+        "label": "Mobile Additional Links",
+        "info": "This appears only in the mobile menu"
+      }
+    ],
+    "blocks":[
+      {
+        "type": "search_suggestion",
+        "name": "Search Suggestion",
+        "settings": [
+          {
+            "type": "text",
+            "id": "suggestion",
+            "label": "Key words"
+          }
+        ]
+      },
+      {
+        "type": "product_set",
+        "name": "Product Group",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "collection",
+            "id": "product_collection",
+            "label": "Product Collection"
+          },
+          {
+            "type": "text",
+            "id": "heading",
+            "label": "Heading"
+          },
+          {
+            "type": "text",
+            "id": "subheading",
+            "label": "Subheading"
+          }
+        ]
+      },
+      {
+        "type": "btn_link",
+        "name": "Button Link Mobile",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "url",
+            "id": "link_url",
+            "label": "Link URL"
+          },
+          {
+            "type": "text",
+            "id": "link_text",
+            "label": "Link Text"
+          },
+          {
+            "type": "select",
+            "id": "text_color_class",
+            "label": "Button Text Color",
+            "options": [{"value":"text-gray-100","label":"Gray 100"},{"value":"text-gray-200","label":"Gray 200"},{"value":"text-gray-300","label":"Gray 300"},{"value":"text-gray-400","label":"Gray 400"},{"value":"text-gray-500","label":"Gray 500"},{"value":"text-gray-600","label":"Gray 600"},{"value":"text-gray-700","label":"Gray 700"},{"value":"text-red-200","label":"Red 200"},{"value":"text-red-400","label":"Red 400"},{"value":"text-red-500","label":"Red 500"},{"value":"text-red-700","label":"Red 700"},{"value":"text-blue-200","label":"Blue 200"},{"value":"text-blue-500","label":"Blue 500"},{"value":"text-blue-700","label":"Blue 700"},{"value":"text-green-200","label":"Green 200"},{"value":"text-green-500","label":"Green 500"},{"value":"text-green-700","label":"Green 700"},{"value":"text-yellow-200","label":"Yellow 200"},{"value":"text-yellow-500","label":"Yellow 500"},{"value":"text-yellow-700","label":"Yellow 700"},{"value":"text-black","label":"Black"},{"value":"text-white","label":"White"},{"value":"text-transparent","label":"Transparent"},{"value":"text-current","label":"Current"}],
+            "default": "text-black"
+          }
+        ]
+      },
+      {
+        "type": "traditional_link_list",
+        "name": "List of Normal Links",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "text",
+            "id": "heading",
+            "label": "Link List Heading"
+          },
+          {
+            "type": "link_list",
+            "id": "linklist",
+            "label": "Link List"
+          }
+        ]
+      },
+      {
+        "type": "bg_img_block",
+        "name": "Bg Img Block w/ Text",
+        "settings": [
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "text",
+            "id": "overlay_copy",
+            "label": "Overlay Copy"
+          },
+          {
+            "type": "image_picker",
+            "id": "bg_img",
+            "label": "Background Image"
+          },
+          {
+            "type": "url",
+            "id": "url",
+            "label": "Link URL"
+          }
+        ]
+      },
+      {
+        "type": "btn_link_desktop",
+        "name": "Button Link Desktop",
+        "settings": [
+          {
+            "type": "paragraph",
+            "content": "Appears in a row at the bottom of a dropdown menu http://i.bvaccel.com/va8esH"
+          },
+          {
+            "type": "text",
+            "id": "group_id",
+            "label": "Menu Name",
+            "info": "This content should appear when I hover over or click <Menu Name>"
+          },
+          {
+            "type": "url",
+            "id": "link_url",
+            "label": "Link URL"
+          },
+          {
+            "type": "text",
+            "id": "link_text",
+            "label": "Link Text"
+          },
+          {
+            "type": "select",
+            "id": "text_color_class",
+            "label": "Button Text Color",
+            "options": [{"value":"text-gray-100","label":"Gray 100"},{"value":"text-gray-200","label":"Gray 200"},{"value":"text-gray-300","label":"Gray 300"},{"value":"text-gray-400","label":"Gray 400"},{"value":"text-gray-500","label":"Gray 500"},{"value":"text-gray-600","label":"Gray 600"},{"value":"text-gray-700","label":"Gray 700"},{"value":"text-red-200","label":"Red 200"},{"value":"text-red-400","label":"Red 400"},{"value":"text-red-500","label":"Red 500"},{"value":"text-red-700","label":"Red 700"},{"value":"text-blue-200","label":"Blue 200"},{"value":"text-blue-500","label":"Blue 500"},{"value":"text-blue-700","label":"Blue 700"},{"value":"text-green-200","label":"Green 200"},{"value":"text-green-500","label":"Green 500"},{"value":"text-green-700","label":"Green 700"},{"value":"text-yellow-200","label":"Yellow 200"},{"value":"text-yellow-500","label":"Yellow 500"},{"value":"text-yellow-700","label":"Yellow 700"},{"value":"text-black","label":"Black"},{"value":"text-white","label":"White"},{"value":"text-transparent","label":"Transparent"},{"value":"text-current","label":"Current"}],
+            "default": "text-black"
+          }
+        ]
+      }
+    ]
+  }
+{% endschema %}
